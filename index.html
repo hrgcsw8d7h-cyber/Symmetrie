@@ -1,0 +1,1579 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b0c0f">
+<title>Symmetrie-Spiegel</title>
+<style>
+:root {
+  --bg: #0b0c0f;
+  --panel: #14161b;
+  --panel2: #1d2027;
+  --line: #2a2e38;
+  --text: #eef1f6;
+  --muted: #9aa3b2;
+  --accent: #3d8bff;
+  --warn: #ffb020;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font: 16px/1.35 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+#app {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+}
+
+[hidden] { display: none !important; }
+
+button, select, input { font: inherit; color: inherit; }
+
+/* ---------- Kopfzeile ---------- */
+.topbar { padding: 8px 10px 6px; }
+.tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 4px;
+  background: var(--panel);
+  border-radius: var(--radius);
+}
+.tab {
+  min-height: 46px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 15px;
+}
+.tab.is-active { background: var(--panel2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
+
+/* ---------- Bühne ---------- */
+.stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.view {
+  position: relative;
+  width: 0;
+  height: 0;
+  background: #000;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.view video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: fill; /* .view hat exakt das Seitenverhältnis des Kamerabilds */
+}
+.view video.mirrored { transform: scaleX(-1); }
+.view canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+  pointer-events: none;
+}
+.stage.editing .view canvas { pointer-events: auto; }
+
+.badge {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(20, 22, 27, 0.82);
+  border: 1px solid var(--accent);
+  font-size: 13px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.hint {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 10px;
+  margin: 0 auto;
+  max-width: 420px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(20, 22, 27, 0.88);
+  border: 1px solid var(--warn);
+  font-size: 14px;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* ---------- Startoberfläche ---------- */
+.start {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  text-align: center;
+  background: var(--bg);
+  overflow: auto;
+}
+.start h1 { margin: 0; font-size: 28px; letter-spacing: -0.02em; }
+.start .lead { margin: 0; color: var(--muted); max-width: 340px; }
+.start .privacy { margin: 6px 0 0; color: var(--muted); font-size: 13px; max-width: 340px; }
+.start .msg {
+  margin: 0;
+  max-width: 340px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--warn);
+  background: rgba(255, 176, 32, 0.08);
+  font-size: 14px;
+}
+
+/* ---------- Unterer Bereich ---------- */
+.bottom {
+  padding: 8px 10px calc(10px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.info {
+  min-height: 20px;
+  max-height: 24vh;
+  overflow: auto;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--panel);
+  font-size: 13px;
+  color: var(--muted);
+}
+.info .row { display: flex; flex-wrap: wrap; gap: 2px 8px; padding: 2px 0; }
+.info .lbl { color: var(--text); font-weight: 600; }
+.info .meta { margin-left: auto; font-variant-numeric: tabular-nums; opacity: 0.85; }
+.info .row.warn .txt { color: var(--warn); }
+.info .foot { padding-top: 4px; font-size: 12px; opacity: 0.8; }
+
+.controls { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.controls #btnFlip[hidden] + #btnEdit { grid-column: auto; }
+
+.btn {
+  min-height: 52px;
+  padding: 8px 6px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel2);
+  font-weight: 600;
+  font-size: 14px;
+  line-height: 1.15;
+}
+.btn:active { filter: brightness(1.25); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.big { min-height: 56px; padding: 10px 28px; font-size: 17px; }
+.btn.small { min-height: 44px; padding: 8px 12px; }
+.btn.is-on { background: rgba(61, 139, 255, 0.22); border-color: var(--accent); }
+.btn:disabled { opacity: 0.5; }
+
+/* ---------- Optionen ---------- */
+.sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 10;
+  max-height: 78vh;
+  max-height: 78dvh;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 12px 14px calc(16px + env(safe-area-inset-bottom));
+  background: var(--panel);
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+  border-top: 1px solid var(--line);
+  box-shadow: 0 -12px 32px rgba(0, 0, 0, 0.5);
+  -webkit-user-select: text;
+  user-select: text;
+}
+.sheet-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.group { padding: 10px 0; border-top: 1px solid var(--line); }
+.group h2 { margin: 0 0 8px; font-size: 13px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+.note { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--bg); border-radius: 12px; }
+.seg button { min-height: 44px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-weight: 600; font-size: 14px; }
+.seg button.is-on { background: var(--panel2); color: var(--text); box-shadow: inset 0 0 0 1px var(--line); }
+
+select {
+  width: 100%;
+  min-height: 48px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--panel2);
+  font-size: 16px;
+}
+
+.opt { display: flex; align-items: center; gap: 12px; min-height: 46px; }
+.opt input[type="checkbox"] { width: 24px; height: 24px; accent-color: var(--accent); flex: none; }
+.opt label { flex: 1; }
+.opt input[type="color"] { width: 44px; height: 34px; padding: 0; border: 1px solid var(--line); border-radius: 8px; background: none; flex: none; }
+
+.slider { display: block; margin-top: 10px; font-size: 14px; color: var(--muted); }
+.slider input { width: 100%; margin-top: 6px; }
+
+@media (min-width: 700px) {
+  .sheet { left: 50%; right: auto; width: 520px; transform: translateX(-50%); }
+}
+
+</style>
+</head>
+<body>
+<div id="app">
+  <header class="topbar">
+    <div class="tabs" role="tablist" aria-label="Ansicht">
+      <button class="tab is-active" data-mode="overview" role="tab" aria-selected="true">Gesamtansicht</button>
+      <button class="tab" data-mode="brows" role="tab" aria-selected="false">Augenbrauen</button>
+      <button class="tab" data-mode="mustache" role="tab" aria-selected="false">Schnurrbart</button>
+    </div>
+  </header>
+
+  <main class="stage" id="stage">
+    <div class="view" id="view">
+      <video id="video" playsinline muted autoplay></video>
+      <canvas id="overlay"></canvas>
+    </div>
+    <div class="badge" id="badge" hidden>Anpassen – Punkte mit dem Finger ziehen</div>
+    <div class="hint" id="hint" hidden role="status" aria-live="polite"></div>
+
+    <section class="start" id="start">
+      <h1>Symmetrie-Spiegel</h1>
+      <p class="lead">Live-Hilfslinien für Augenbrauen und Schnurrbart, berechnet relativ zu deiner Gesichtsmitte.</p>
+      <button id="btnStart" class="btn primary big" type="button">Kamera starten</button>
+      <p class="msg" id="startMsg" role="alert" hidden></p>
+      <p class="privacy">
+        Die Kamera wird nur für die Live-Anzeige gebraucht. Die Gesichtserkennung läuft auf deinem Gerät,
+        Kamerabilder werden weder hochgeladen noch gespeichert. Beim ersten Start lädt die Seite das
+        Erkennungsmodell aus dem Internet (einige Megabyte). Davor fragt dich iOS um Erlaubnis für die Kamera.
+      </p>
+    </section>
+  </main>
+
+  <footer class="bottom">
+    <div class="info" id="info" aria-live="polite"></div>
+    <div class="controls">
+      <button id="btnToggle" class="btn primary" type="button">Kamera starten</button>
+      <button id="btnFlip" class="btn" type="button" hidden>Kamera wechseln</button>
+      <button id="btnEdit" class="btn" type="button" aria-pressed="false">Anpassen</button>
+      <button id="btnSettings" class="btn" type="button" aria-expanded="false" aria-controls="sheet">Optionen</button>
+    </div>
+  </footer>
+
+  <aside class="sheet" id="sheet" hidden aria-label="Optionen">
+    <div class="sheet-head">
+      <strong>Optionen</strong>
+      <button id="sheetClose" class="btn small" type="button">Schließen</button>
+    </div>
+
+    <section class="group">
+      <h2>Ausrichtung</h2>
+      <div class="seg" id="segAlign">
+        <button type="button" data-align="auto">Automatisch</button>
+        <button type="button" data-align="manual">Mit meinen Korrekturen</button>
+      </div>
+      <p class="note">Im Modus „Anpassen“ lassen sich Punkte verschieben. Die Gesichtserkennung läuft dabei weiter; deine Korrekturen wandern mit dem Kopf mit.</p>
+      <button id="btnResetAdj" class="btn small" type="button">Alle Korrekturen zurücksetzen</button>
+    </section>
+
+    <section class="group">
+      <h2>Hilfslinie fixieren</h2>
+      <div class="row2">
+        <button id="btnFreezeH" class="btn small" type="button">Waagerechte fixieren</button>
+        <button id="btnFreezeV" class="btn small" type="button">Senkrechte fixieren</button>
+      </div>
+      <p class="note">Hält die aktuelle Augenlinie (bzw. Mundwinkellinie im Schnurrbart-Modus) oder die Mittellinie am Bildschirm fest, auch wenn du den Kopf bewegst.</p>
+    </section>
+
+    <section class="group">
+      <h2>Vorbild für Spiegelpunkte und Zielform</h2>
+      <select id="selRef" aria-label="Vorbild-Seite">
+        <option value="avg">Mittelwert beider Seiten</option>
+        <option value="left">Linke Seite als Vorbild</option>
+        <option value="right">Rechte Seite als Vorbild</option>
+      </select>
+      <p class="note">„Links“ und „rechts“ gelten immer so, wie es auf dem Bildschirm erscheint.</p>
+    </section>
+
+    <section class="group">
+      <h2>Anzeige</h2>
+      <div id="displayRows"></div>
+      <label class="slider">Transparenz der Linien
+        <input id="rngAlpha" type="range" min="20" max="100" step="5">
+      </label>
+      <label class="slider">Linienstärke
+        <input id="rngWidth" type="range" min="1" max="6" step="0.5">
+      </label>
+    </section>
+
+    <section class="group">
+      <h2>Hinweise</h2>
+      <p class="note">Alle Werte sind visuelle Schätzungen aus Gesichts-Landmarks, keine exakten Messungen. Natürliche Unterschiede zwischen links und rechts sind normal. Die App erkennt nicht, wo deine Barthaare tatsächlich enden; die Schnurrbart-Enden starten an den Mundwinkeln und werden von dir verschoben.</p>
+      <p class="note">Gespeichert werden nur diese Anzeige-Einstellungen im Browser, keine Bilder.</p>
+    </section>
+  </aside>
+</div>
+<script type="module">
+const __m_filter = (() => {
+// filter.js — Glättung der Landmark-Bewegungen (One-Euro-Filter).
+// Bei ruhigem Kopf wird Zittern stark gedämpft, bei schneller Bewegung
+// steigt die Grenzfrequenz, damit die Linien nicht hinterherhinken.
+
+const TWO_PI = 2 * Math.PI;
+const alphaFor = (cutoff, dt) => {
+  const tau = 1 / (TWO_PI * cutoff);
+  return 1 / (1 + tau / dt);
+};
+
+class OneEuro {
+  // Koordinaten sind normalisiert (0..1); deshalb ist beta relativ groß.
+  constructor(minCutoff = 1.0, beta = 25, dCutoff = 1.0) {
+    this.minCutoff = minCutoff;
+    this.beta = beta;
+    this.dCutoff = dCutoff;
+    this.reset();
+  }
+
+  reset() {
+    this.x = null;
+    this.dx = 0;
+    this.t = null;
+  }
+
+  filter(value, tSec) {
+    if (this.x === null) {
+      this.x = value;
+      this.dx = 0;
+      this.t = tSec;
+      return value;
+    }
+    const dt = Math.max(tSec - this.t, 1e-3);
+    this.t = tSec;
+    const rawDx = (value - this.x) / dt;
+    this.dx += alphaFor(this.dCutoff, dt) * (rawDx - this.dx);
+    const cutoff = this.minCutoff + this.beta * Math.abs(this.dx);
+    this.x += alphaFor(cutoff, dt) * (value - this.x);
+    return this.x;
+  }
+}
+
+class LandmarkSmoother {
+  constructor(count = 478, opts = {}) {
+    const { minCutoff = 1.0, beta = 25, dCutoff = 1.0 } = opts;
+    this.fx = Array.from({ length: count }, () => new OneEuro(minCutoff, beta, dCutoff));
+    this.fy = Array.from({ length: count }, () => new OneEuro(minCutoff, beta, dCutoff));
+    this.out = Array.from({ length: count }, () => ({ x: 0, y: 0 }));
+  }
+
+  reset() {
+    for (const f of this.fx) f.reset();
+    for (const f of this.fy) f.reset();
+  }
+
+  // landmarks: [{x,y}, ...] normalisiert; tSec: Zeitstempel in Sekunden
+  apply(landmarks, tSec) {
+    const n = Math.min(landmarks.length, this.out.length);
+    for (let i = 0; i < n; i++) {
+      this.out[i].x = this.fx[i].filter(landmarks[i].x, tSec);
+      this.out[i].y = this.fy[i].filter(landmarks[i].y, tSec);
+    }
+    return this.out;
+  }
+}
+
+return { OneEuro, LandmarkSmoother };
+})();
+const __m_geometry = (() => {
+// geometry.js — reine Geometrie auf Basis der MediaPipe-Face-Mesh-Landmarks.
+// Keine DOM-Abhängigkeit, daher auch in Node testbar.
+//
+// Alle Berechnungen laufen in Anzeige-Koordinaten (Pixel des angezeigten Bildes,
+// bereits gespiegelt, falls die Frontkamera gespiegelt dargestellt wird).
+// "links"/"rechts" bedeutet immer: so, wie es auf dem Bildschirm erscheint.
+//
+// Gesichtskoordinaten: Ursprung O = Schnittpunkt von Mittellinie und Augenlinie,
+// Achse b (v) = Richtung der Mittellinie (nach unten), Achse a (u) = senkrecht
+// dazu (nach rechts). So wirkt eine seitliche Kopfneigung (Roll) nicht auf die Werte.
+
+// Schwellen für die Wörter in der Anzeige (Anteil der Gesichtsbreite).
+// NOISE: unterhalb liegt der Unterschied im Bereich des Messrauschens der
+// Landmarks (nach Glättung grob 0,5–1 % der Gesichtsbreite) -> "ungefähr gleich".
+const NOISE = 0.01;
+const SMALL = 0.025;
+
+const MIDLINE_IDS = [10, 9, 168, 6, 1, 2, 0, 17, 152];
+
+// Augenbrauen-Landmarks. Reihenfolge jeweils von außen nach innen.
+// A = Brauen auf der Bildseite der Landmarks 33/234 (Person rechts, im Rohbild links),
+// B = Gegenseite. Die Zuordnung zu Bildschirm links/rechts passiert dynamisch.
+const BROW_A = { upper: [70, 63, 105, 66, 107], lower: [46, 53, 52, 65, 55] };
+const BROW_B = { upper: [300, 293, 334, 296, 336], lower: [276, 283, 282, 295, 285] };
+
+const sub = (p, q) => ({ x: p.x - q.x, y: p.y - q.y });
+const add = (p, q) => ({ x: p.x + q.x, y: p.y + q.y });
+const mul = (p, k) => ({ x: p.x * k, y: p.y * k });
+const dot = (p, q) => p.x * q.x + p.y * q.y;
+const mid = (p, q) => ({ x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 });
+
+function solve3(M, T) {
+  const A = M.map((row, i) => [...row, T[i]]);
+  for (let c = 0; c < 3; c++) {
+    let piv = c;
+    for (let r = c + 1; r < 3; r++) if (Math.abs(A[r][c]) > Math.abs(A[piv][c])) piv = r;
+    if (Math.abs(A[piv][c]) < 1e-12) return null;
+    [A[c], A[piv]] = [A[piv], A[c]];
+    for (let r = c + 1; r < 3; r++) {
+      const f = A[r][c] / A[c][c];
+      for (let k = c; k < 4; k++) A[r][k] -= f * A[c][k];
+    }
+  }
+  const x = [0, 0, 0];
+  for (let r = 2; r >= 0; r--) {
+    let s = A[r][3];
+    for (let k = r + 1; k < 3; k++) s -= A[r][k] * x[k];
+    x[r] = s / A[r][r];
+  }
+  return x;
+}
+
+// Parabel y = c0 + c1*x + c2*x^2 durch (t, y), numerisch stabil normiert.
+function fitQuad(t, y) {
+  const n = t.length;
+  if (n < 3) return null;
+  const tm = t.reduce((s, v) => s + v, 0) / n;
+  const span = Math.max(...t) - Math.min(...t);
+  if (!(span > 1e-6)) return null;
+  const x = t.map((v) => (v - tm) / span);
+  const S = [0, 0, 0, 0, 0];
+  const T = [0, 0, 0];
+  for (let i = 0; i < n; i++) {
+    let p = 1;
+    for (let k = 0; k < 5; k++) {
+      S[k] += p;
+      if (k < 3) T[k] += y[i] * p;
+      p *= x[i];
+    }
+  }
+  const c = solve3([[S[0], S[1], S[2]], [S[1], S[2], S[3]], [S[2], S[3], S[4]]], T);
+  if (!c) return null;
+  const [c0, c1, c2] = c;
+  return {
+    c2,
+    vertexT: (-c1 / (2 * c2)) * span + tm,
+    valueAt: (tt) => {
+      const xx = (tt - tm) / span;
+      return c0 + c1 * xx + c2 * xx * xx;
+    },
+  };
+}
+
+function analyzeBrow(spec, P, toF, fromF) {
+  const mk = (ids) =>
+    ids.map((id) => {
+      const p = P(id);
+      const f = toF(p);
+      return { id, p, a: f.a, b: f.b };
+    });
+  const up = mk(spec.upper);
+  const lo = mk(spec.lower);
+  const all = up.concat(lo);
+  const side = all.reduce((s, q) => s + q.a, 0) < 0 ? -1 : 1;
+  const innermost = (arr) => arr.reduce((best, q) => (Math.abs(q.a) < Math.abs(best.a) ? q : best));
+  const outermost = (arr) => arr.reduce((best, q) => (Math.abs(q.a) > Math.abs(best.a) ? q : best));
+
+  // Anfang/Ende: Mitte der Brauendicke an den Enden (Mittelwert Oberkante/Unterkante)
+  const start = mid(innermost(up).p, innermost(lo).p);
+  const end = mid(outermost(up).p, outermost(lo).p);
+
+  // Höchster Punkt: Scheitel einer Parabel durch die Oberkante (Schätzung zwischen den
+  // diskreten Landmarks). Liegt der Scheitel außerhalb der Brauenlänge, wird der
+  // höchste Landmark der Oberkante verwendet.
+  const ts = up.map((q) => Math.abs(q.a));
+  const bs = up.map((q) => q.b);
+  let peak = null;
+  const fit = fitQuad(ts, bs);
+  if (fit && fit.c2 > 0) {
+    const tStar = fit.vertexT;
+    if (tStar >= Math.min(...ts) && tStar <= Math.max(...ts)) {
+      peak = fromF(side * tStar, fit.valueAt(tStar));
+    }
+  }
+  if (!peak) peak = up.reduce((best, q) => (q.b < best.b ? q : best)).p;
+
+  return { side, start, peak, end, upper: up.map((q) => q.p), lower: lo.map((q) => q.p) };
+}
+
+// lm: geglättete Landmarks [{x,y}] normalisiert (Rohbild, ungespiegelt)
+// W,H: Größe des angezeigten Bildes in Pixeln; mirrored: Anzeige gespiegelt?
+// vw: Breite des Kamerabildes in Pixeln (für Umrechnung in Kamerapixel)
+function buildFace(lm, W, H, mirrored, vw) {
+  const P = (id) => ({ x: (mirrored ? 1 - lm[id].x : lm[id].x) * W, y: lm[id].y * H });
+
+  // Mittellinie: Ausgleichsgerade (Hauptachse) durch mehrere Mittellinien-Landmarks
+  const pts = MIDLINE_IDS.map(P);
+  const c = mul(pts.reduce((s, p) => add(s, p), { x: 0, y: 0 }), 1 / pts.length);
+  let sxx = 0, sxy = 0, syy = 0;
+  for (const p of pts) {
+    const dx = p.x - c.x, dy = p.y - c.y;
+    sxx += dx * dx; sxy += dx * dy; syy += dy * dy;
+  }
+  const ang = 0.5 * Math.atan2(2 * sxy, sxx - syy);
+  let m = { x: Math.cos(ang), y: Math.sin(ang) };
+  if (m.y < 0) m = { x: -m.x, y: -m.y };
+  const u = { x: m.y, y: -m.x };
+
+  const proj = (p) => add(c, mul(m, dot(sub(p, c), m)));
+
+  const eyeA = mid(P(33), P(133));
+  const eyeB = mid(P(362), P(263));
+  const eyeMid = mid(eyeA, eyeB);
+  const O = proj(eyeMid);
+  const toF = (p) => {
+    const d = sub(p, O);
+    return { a: dot(d, u), b: dot(d, m) };
+  };
+  const fromF = (a, b) => ({ x: O.x + u.x * a + m.x * b, y: O.y + u.y * a + m.y * b });
+
+  const fw = Math.abs(dot(sub(P(454), P(234)), u));
+
+  const byScreenSide = (p, q) => (toF(p).a <= toF(q).a ? [p, q] : [q, p]);
+  const [eyeL, eyeR] = byScreenSide(eyeA, eyeB);
+  const [mouthL, mouthR] = byScreenSide(P(61), P(291));
+  const [alaL, alaR] = byScreenSide(P(129), P(358));
+
+  const bA = analyzeBrow(BROW_A, P, toF, fromF);
+  const bB = analyzeBrow(BROW_B, P, toF, fromF);
+  const [browL, browR] = bA.side < 0 ? [bA, bB] : [bB, bA];
+
+  return {
+    W, H, mirrored,
+    O, u, m, fw, toF, fromF,
+    vidPerDisp: vw / W,
+    rollDeg: (Math.atan2(m.x, m.y) * 180) / Math.PI,
+    midTop: proj(P(9)),
+    midBottom: proj(P(152)),
+    eyeL, eyeR,
+    brows: { left: browL, right: browR },
+    mouthL, mouthR,
+    alaL, alaR,
+    lipC: P(0),
+    subnasale: P(2),
+    noseTip: P(1),
+    chin: P(152),
+  };
+}
+
+// Punkte, die per Touch verschoben werden dürfen (Reihenfolge = Trefferpriorität)
+const DRAGGABLE = [
+  'mustEndL', 'mustEndR', 'lipC', 'mouthL', 'mouthR',
+  'browPeakL', 'browPeakR', 'browStartL', 'browStartR', 'browEndL', 'browEndR',
+];
+
+// Liefert pro Punkt { pos, auto }. pos = automatisch + manueller Versatz (falls aktiv).
+// Versätze sind in Gesichtskoordinaten (Einheit: Gesichtsbreite) gespeichert und
+// wandern daher mit Kopfbewegung und -drehung mit.
+function buildPoints(face, offsets, useManual) {
+  const f = face;
+  const auto = {
+    browStartL: f.brows.left.start, browPeakL: f.brows.left.peak, browEndL: f.brows.left.end,
+    browStartR: f.brows.right.start, browPeakR: f.brows.right.peak, browEndR: f.brows.right.end,
+    mouthL: f.mouthL, mouthR: f.mouthR,
+    // Startwert der Schnurrbart-Enden = Mundwinkel (Haare werden nicht erkannt!)
+    mustEndL: f.mouthL, mustEndR: f.mouthR,
+    lipC: f.lipC,
+    subnasale: f.subnasale, alaL: f.alaL, alaR: f.alaR,
+    noseTip: f.noseTip, chin: f.chin,
+  };
+  const out = {};
+  for (const id of Object.keys(auto)) {
+    const a = auto[id];
+    const o = useManual && offsets ? offsets[id] : null;
+    const pos = o
+      ? { x: a.x + (f.u.x * o[0] + f.m.x * o[1]) * f.fw, y: a.y + (f.u.y * o[0] + f.m.y * o[1]) * f.fw }
+      : a;
+    out[id] = { pos, auto: a };
+  }
+  return out;
+}
+
+// Versatz (in Gesichtskoordinaten/Gesichtsbreite), damit ein Punkt bei 'target' liegt
+function offsetFromDrag(face, autoPos, target) {
+  const d = sub(target, autoPos);
+  return [dot(d, face.u) / face.fw, dot(d, face.m) / face.fw];
+}
+
+// Vergleich eines linken und rechten Punktes. Werte als Anteil der Gesichtsbreite.
+//  h > 0: linker Punkt liegt höher;  l > 0: linker Punkt liegt weiter von der Mitte entfernt
+function pairMetrics(face, pl, pr) {
+  const fl = face.toF(pl);
+  const fr = face.toF(pr);
+  const hDisp = fr.b - fl.b;
+  const lDisp = Math.abs(fl.a) - Math.abs(fr.a);
+  return {
+    h: hDisp / face.fw,
+    l: lDisp / face.fw,
+    hPx: Math.abs(hDisp) * face.vidPerDisp,
+    lPx: Math.abs(lDisp) * face.vidPerDisp,
+  };
+}
+
+// Soll-Positionen (Spiegelpunkte). mode: 'avg' | 'left' | 'right' (welche Seite ist Vorbild)
+function ghostPair(face, pl, pr, mode) {
+  const fl = face.toF(pl);
+  const fr = face.toF(pr);
+  if (mode === 'left') return { left: null, right: face.fromF(-fl.a, fl.b) };
+  if (mode === 'right') return { left: face.fromF(-fr.a, fr.b), right: null };
+  const a = (Math.abs(fl.a) + Math.abs(fr.a)) / 2;
+  const b = (fl.b + fr.b) / 2;
+  return { left: face.fromF(-a, b), right: face.fromF(a, b) };
+}
+
+// Wie weit ist das Gesicht aus der Frontalansicht zur Kamera gedreht (Yaw+Pitch, ohne Roll)?
+// Aus der 4x4-Transformationsmatrix von MediaPipe. Der Wert R22 ist unabhängig davon,
+// ob die Matrix zeilen- oder spaltenweise abgelegt ist.
+function offAxisDeg(data) {
+  if (!data || data.length < 16) return null;
+  const s = Math.hypot(data[8], data[9], data[10]);
+  if (!(s > 0)) return null;
+  return (Math.acos(Math.min(1, Math.abs(data[10]) / s)) * 180) / Math.PI;
+}
+
+// 0 = ungefähr gleich, 1 = kleiner Unterschied, 2 = deutlicher Unterschied
+function classify(absFraction) {
+  if (absFraction < NOISE) return 0;
+  if (absFraction < SMALL) return 1;
+  return 2;
+}
+
+return { NOISE, SMALL, buildFace, DRAGGABLE, buildPoints, offsetFromDrag, pairMetrics, ghostPair, offAxisDeg, classify };
+})();
+// app.js — Kamera, Gesichtserkennung (MediaPipe Face Landmarker), Overlay, Bedienung.
+const { LandmarkSmoother } = __m_filter;
+const {
+  buildFace, buildPoints, ghostPair, pairMetrics, offsetFromDrag, offAxisDeg, classify,
+} = __m_geometry;
+
+// ---------------------------------------------------------------------------
+// Konfiguration
+// ---------------------------------------------------------------------------
+// Es werden nacheinander diese Versionen probiert (erste, die lädt, gewinnt).
+const MP_VERSIONS = ['0.10.21', '0.10.22', '0.10.14'];
+const MODEL_URL =
+  'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task';
+const SETTINGS_KEY = 'symmetrie-spiegel.settings.v1';
+const POSE_WARN_DEG = 10;   // ab dieser Abweichung von der Frontalansicht: Hinweis (Heuristik)
+const HIT_RADIUS = 34;      // Touch-Trefferradius in CSS-Pixeln
+const NO_FACE_GRACE_MS = 400;
+
+const DEFAULTS = {
+  colors: { mid: '#ff3b30', eye: '#2f7bff', start: '#34c759', peak: '#ffd60a', end: '#19d3d3', must: '#ff2dd4', white: '#ffffff' },
+  show: { mid: true, eye: true, start: true, peak: true, end: true, must: true, white: true, contour: true, guides: true, ghosts: true, target: true },
+  alpha: 0.9,
+  width: 2,
+  refSide: 'avg',
+};
+
+const DISPLAY_ROWS = [
+  ['mid', 'Mittellinie (rot)', 'mid'],
+  ['eye', 'Augenlinie (blau)', 'eye'],
+  ['start', 'Brauenanfang (grün)', 'start'],
+  ['peak', 'Brauenbogen, höchster Punkt (gelb)', 'peak'],
+  ['end', 'Brauenende (türkis)', 'end'],
+  ['must', 'Schnurrbart-Punkte (magenta)', 'must'],
+  ['white', 'Mundwinkel und Orientierung (weiß)', 'white'],
+];
+const DISPLAY_TOGGLES = [
+  ['contour', 'Brauenkontur (Augenbrauen-Ansicht)'],
+  ['guides', 'Vergleichslinien, gestrichelt'],
+  ['ghosts', 'Spiegelpunkte (Ringe)'],
+  ['target', 'Zielform Schnurrbart, gestrichelt'],
+];
+
+// ---------------------------------------------------------------------------
+// Zustand
+// ---------------------------------------------------------------------------
+const $ = (id) => document.getElementById(id);
+const video = $('video');
+const canvas = $('overlay');
+const ctx = canvas.getContext('2d');
+const stage = $('stage');
+const view = $('view');
+
+const state = {
+  mode: 'overview',
+  edit: false,
+  facing: 'user',
+  mirrored: true,
+  running: false,
+  starting: false,
+  session: 0,
+  stream: null,
+  cb: null,
+  cbType: null,
+  landmarker: null,
+  landmarkerPromise: null,
+  mp: null,
+  fileset: null,
+  delegate: null,
+  modelStatus: 'idle', // idle | loading | ready | error
+  modelError: '',
+  smoother: new LandmarkSmoother(478, { minCutoff: 1.0, beta: 25, dCutoff: 1.0 }),
+  face: null,
+  pts: null,
+  offAxis: null,
+  partial: false,
+  lastFaceTs: 0,
+  lastTs: 0,
+  lastVideoTime: -1,
+  offsets: {},
+  alignment: 'auto',
+  frozen: { h: null, v: null },
+  drag: null,
+  W: 0, H: 0, vw: 0, vh: 0,
+  infoSig: '',
+  infoAt: 0,
+  runtimeError: '',
+};
+
+let settings = loadSettings();
+
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+    if (s && typeof s === 'object') {
+      return {
+        ...DEFAULTS, ...s,
+        colors: { ...DEFAULTS.colors, ...(s.colors || {}) },
+        show: { ...DEFAULTS.show, ...(s.show || {}) },
+      };
+    }
+  } catch (_) { /* Speicher evtl. blockiert */ }
+  return JSON.parse(JSON.stringify(DEFAULTS));
+}
+function saveSettings() {
+  try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (_) { /* ignorieren */ }
+}
+
+// ---------------------------------------------------------------------------
+// Fehlertexte
+// ---------------------------------------------------------------------------
+function describeCameraError(e) {
+  const n = e && e.name;
+  if (n === 'NotAllowedError' || n === 'SecurityError') {
+    return 'Der Kamerazugriff ist nicht erlaubt. In Safari: „aA“-Symbol in der Adressleiste → Webseiteneinstellungen → Kamera → Erlauben. Danach erneut starten.';
+  }
+  if (n === 'NotFoundError' || n === 'DevicesNotFoundError') return 'Es wurde keine Kamera gefunden.';
+  if (n === 'NotReadableError' || n === 'TrackStartError') {
+    return 'Die Kamera lässt sich nicht öffnen. Vielleicht nutzt eine andere App oder ein anderer Tab sie gerade. Schließe diese und versuche es erneut.';
+  }
+  if (n === 'OverconstrainedError') return 'Die gewünschte Kamera ist nicht verfügbar. Versuche „Kamera wechseln“.';
+  if (n === 'AbortError') return 'Der Kamerastart wurde abgebrochen. Bitte erneut versuchen.';
+  return 'Die Kamera konnte nicht gestartet werden' + (e && e.message ? ` (${e.message})` : '') + '.';
+}
+
+function showStartMessage(text) {
+  const el = $('startMsg');
+  el.textContent = text || '';
+  el.hidden = !text;
+}
+
+// ---------------------------------------------------------------------------
+// MediaPipe laden
+// ---------------------------------------------------------------------------
+async function createLandmarker(delegate) {
+  return state.mp.FaceLandmarker.createFromOptions(state.fileset, {
+    baseOptions: { modelAssetPath: MODEL_URL, delegate },
+    runningMode: 'VIDEO',
+    numFaces: 1,
+    outputFaceBlendshapes: false,
+    outputFacialTransformationMatrixes: true,
+    minFaceDetectionConfidence: 0.5,
+    minFacePresenceConfidence: 0.5,
+    minTrackingConfidence: 0.5,
+  });
+}
+
+function ensureLandmarker() {
+  if (state.landmarker) return Promise.resolve(state.landmarker);
+  if (state.landmarkerPromise) return state.landmarkerPromise;
+  state.modelStatus = 'loading';
+  state.landmarkerPromise = (async () => {
+    let lastErr = null;
+    for (const v of MP_VERSIONS) {
+      try {
+        const base = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${v}`;
+        state.mp = await import(`${base}/vision_bundle.mjs`);
+        state.fileset = await state.mp.FilesetResolver.forVisionTasks(`${base}/wasm`);
+        try {
+          state.landmarker = await createLandmarker('GPU');
+          state.delegate = 'GPU';
+        } catch (_) {
+          state.landmarker = await createLandmarker('CPU');
+          state.delegate = 'CPU';
+        }
+        state.modelStatus = 'ready';
+        return state.landmarker;
+      } catch (e) {
+        lastErr = e;
+        console.warn('MediaPipe', v, 'fehlgeschlagen:', e);
+      }
+    }
+    throw lastErr || new Error('Unbekannter Fehler');
+  })();
+  state.landmarkerPromise.catch((e) => {
+    state.modelStatus = 'error';
+    state.modelError = (e && e.message) || String(e);
+    state.landmarkerPromise = null;
+  });
+  return state.landmarkerPromise;
+}
+
+async function fallbackToCpu() {
+  if (state.delegate !== 'GPU') return false;
+  try {
+    const old = state.landmarker;
+    state.landmarker = null;
+    try { old && old.close(); } catch (_) { /* ignorieren */ }
+    state.landmarker = await createLandmarker('CPU');
+    state.delegate = 'CPU';
+    return true;
+  } catch (e) {
+    console.error('CPU-Fallback fehlgeschlagen', e);
+    return false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Kamera
+// ---------------------------------------------------------------------------
+function waitForVideoSize(timeoutMs = 4000) {
+  return new Promise((resolve, reject) => {
+    if (video.videoWidth > 0) return resolve();
+    const t0 = performance.now();
+    const check = () => {
+      if (video.videoWidth > 0) return resolve();
+      if (performance.now() - t0 > timeoutMs) return reject(new Error('Kein Videobild erhalten'));
+      requestAnimationFrame(check);
+    };
+    check();
+  });
+}
+
+async function startCamera() {
+  if (state.running || state.starting) return;
+  showStartMessage('');
+  if (!window.isSecureContext) {
+    showStartMessage('Die Kamera funktioniert nur über HTTPS oder localhost. Öffne die Seite über eine https://-Adresse.');
+    return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    showStartMessage('Dieser Browser unterstützt keinen Kamerazugriff (getUserMedia). Bitte Safari ab iOS 14.3 verwenden.');
+    return;
+  }
+  if (typeof WebAssembly !== 'object') {
+    showStartMessage('Dieser Browser unterstützt WebAssembly nicht, das für die Gesichtserkennung nötig ist.');
+    return;
+  }
+
+  state.starting = true;
+  const session = ++state.session;
+  syncUI();
+  try {
+    // Kamera zuerst anfragen, solange die Berührung noch als Nutzeraktion zählt (iOS).
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: false,
+      video: { facingMode: { ideal: state.facing }, width: { ideal: 1280 }, height: { ideal: 720 } },
+    });
+    if (session !== state.session) { stream.getTracks().forEach((t) => t.stop()); return; }
+
+    state.stream = stream;
+    const track = stream.getVideoTracks()[0];
+    const fm = track && track.getSettings ? track.getSettings().facingMode : undefined;
+    state.mirrored = fm ? fm === 'user' : state.facing === 'user';
+    video.classList.toggle('mirrored', state.mirrored);
+    video.srcObject = stream;
+    track.addEventListener('ended', () => {
+      if (session === state.session) stopCamera('Die Kamera wurde beendet (z. B. durch eine andere App).');
+    });
+    await video.play();
+    await waitForVideoSize();
+    if (session !== state.session) return;
+
+    state.running = true;
+    state.lastFaceTs = 0;
+    state.lastVideoTime = -1;
+    state.smoother.reset();
+    state.runtimeError = '';
+    $('start').hidden = true;
+    layout(true);
+    refreshDevices();
+    schedule();
+
+    ensureLandmarker().catch(() => {});
+  } catch (e) {
+    console.error(e);
+    if (session === state.session) {
+      cleanupStream();
+      showStartMessage(describeCameraError(e));
+    }
+  } finally {
+    if (session === state.session) state.starting = false;
+    syncUI();
+  }
+}
+
+function cleanupStream() {
+  cancelLoop();
+  if (state.stream) state.stream.getTracks().forEach((t) => t.stop());
+  state.stream = null;
+  try { video.pause(); } catch (_) { /* ignorieren */ }
+  video.srcObject = null;
+}
+
+function stopCamera(message) {
+  state.session++;           // laufende asynchrone Starts werden damit ungültig
+  state.starting = false;
+  state.running = false;
+  cleanupStream();
+  state.face = null;
+  state.pts = null;
+  state.drag = null;
+  state.frozen = { h: null, v: null };
+  state.smoother.reset();
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  view.style.width = '0px';
+  view.style.height = '0px';
+  state.vw = state.vh = 0;
+  $('start').hidden = false;
+  $('btnStart').textContent = 'Kamera erneut starten';
+  showStartMessage(message || '');
+  setHint('');
+  renderInfo([]);
+  syncUI();
+}
+
+async function refreshDevices() {
+  try {
+    const list = await navigator.mediaDevices.enumerateDevices();
+    const cams = list.filter((d) => d.kind === 'videoinput');
+    $('btnFlip').hidden = cams.length < 2;
+  } catch (_) {
+    $('btnFlip').hidden = true;
+  }
+}
+
+async function flipCamera() {
+  if (state.starting) return;
+  state.facing = state.facing === 'user' ? 'environment' : 'user';
+  state.offsets = {};          // Versätze gelten für eine bestimmte Spiegelung
+  state.alignment = 'auto';
+  const wasRunning = state.running;
+  state.session++;
+  state.running = false;
+  cleanupStream();
+  state.face = null;
+  state.pts = null;
+  state.frozen = { h: null, v: null };
+  state.smoother.reset();
+  if (wasRunning) await startCamera();
+}
+
+// ---------------------------------------------------------------------------
+// Schleife
+// ---------------------------------------------------------------------------
+function schedule() {
+  if (!state.running) return;
+  if ('requestVideoFrameCallback' in video) {
+    state.cbType = 'v';
+    state.cb = video.requestVideoFrameCallback(tick);
+  } else {
+    state.cbType = 'r';
+    state.cb = requestAnimationFrame(tick);
+  }
+}
+
+function cancelLoop() {
+  if (state.cb == null) return;
+  try {
+    if (state.cbType === 'v') video.cancelVideoFrameCallback(state.cb);
+    else cancelAnimationFrame(state.cb);
+  } catch (_) { /* ignorieren */ }
+  state.cb = null;
+}
+
+function tick() {
+  state.cb = null;
+  if (!state.running) return;
+  try {
+    frame();
+  } catch (e) {
+    console.error(e);
+    state.runtimeError = 'Fehler bei der Gesichtserkennung: ' + ((e && e.message) || e);
+    if (state.delegate === 'GPU') fallbackToCpu();
+  }
+  schedule();
+}
+
+function frame() {
+  if (video.videoWidth !== state.vw || video.videoHeight !== state.vh) layout(false);
+
+  const lm = state.landmarker;
+  const fresh = state.cbType === 'v' || video.currentTime !== state.lastVideoTime;
+  if (lm && fresh && video.readyState >= 2 && state.W > 0) {
+    state.lastVideoTime = video.currentTime;
+    let ts = performance.now();
+    if (ts <= state.lastTs) ts = state.lastTs + 1;
+    state.lastTs = ts;
+
+    const res = lm.detectForVideo(video, ts);
+    const raw = res && res.faceLandmarks && res.faceLandmarks[0];
+    if (raw && raw.length >= 468) {
+      const sm = state.smoother.apply(raw, ts / 1000);
+      state.face = buildFace(sm, state.W, state.H, state.mirrored, state.vw);
+      state.pts = buildPoints(state.face, state.offsets, state.alignment === 'manual');
+      const m = res.facialTransformationMatrixes && res.facialTransformationMatrixes[0];
+      state.offAxis = offAxisDeg(m && m.data);
+      const out = (i) => raw[i].x < -0.02 || raw[i].x > 1.02 || raw[i].y < -0.02 || raw[i].y > 1.02;
+      state.partial = out(10) || out(152) || out(234) || out(454);
+      state.lastFaceTs = ts;
+      state.runtimeError = '';
+    } else if (ts - state.lastFaceTs > NO_FACE_GRACE_MS) {
+      state.face = null;
+      state.pts = null;
+      state.smoother.reset();
+    }
+  }
+  draw();
+  updateHint();
+  updateInfo();
+}
+
+// ---------------------------------------------------------------------------
+// Layout: Kamerabild in die Bühne einpassen (Seitenverhältnis bleibt erhalten)
+// ---------------------------------------------------------------------------
+function layout(force) {
+  const vw = video.videoWidth, vh = video.videoHeight;
+  if (!vw || !vh) return;
+  const r = stage.getBoundingClientRect();
+  if (r.width < 10 || r.height < 10) return;
+  const s = Math.min(r.width / vw, r.height / vh);
+  const w = Math.floor(vw * s), h = Math.floor(vh * s);
+  if (!force && w === state.W && h === state.H && vw === state.vw && vh === state.vh) return;
+  state.vw = vw; state.vh = vh;
+  state.W = w; state.H = h;
+  view.style.width = w + 'px';
+  view.style.height = h + 'px';
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.round(w * dpr);
+  canvas.height = Math.round(h * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  state.smoother.reset();
+}
+
+window.addEventListener('resize', () => layout(true));
+window.addEventListener('orientationchange', () => setTimeout(() => layout(true), 250));
+if ('ResizeObserver' in window) new ResizeObserver(() => layout(true)).observe(stage);
+
+// ---------------------------------------------------------------------------
+// Zeichnen
+// ---------------------------------------------------------------------------
+function seg(a, b, color, w, alpha, dash) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = w;
+  ctx.lineCap = 'round';
+  ctx.setLineDash(dash || []);
+  ctx.beginPath();
+  ctx.moveTo(a.x, a.y);
+  ctx.lineTo(b.x, b.y);
+  ctx.stroke();
+  ctx.restore();
+}
+function poly(points, color, w, alpha, dash) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = w;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.setLineDash(dash || []);
+  ctx.beginPath();
+  points.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+  ctx.stroke();
+  ctx.restore();
+}
+function extend(a, b, k) {
+  const dx = b.x - a.x, dy = b.y - a.y;
+  return [{ x: a.x - dx * k, y: a.y - dy * k }, { x: b.x + dx * k, y: b.y + dy * k }];
+}
+function dot(p, color, r, handle) {
+  ctx.save();
+  ctx.globalAlpha = 1;
+  ctx.fillStyle = color;
+  ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  if (handle) {
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r + 5, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+function ring(p, color, r) {
+  ctx.save();
+  ctx.globalAlpha = 0.95;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function visibleDraggables() {
+  const brow = ['browPeakL', 'browPeakR', 'browStartL', 'browStartR', 'browEndL', 'browEndR'];
+  const must = ['mustEndL', 'mustEndR', 'lipC', 'mouthL', 'mouthR'];
+  if (state.mode === 'brows') return brow;
+  if (state.mode === 'mustache') return must;
+  return must.concat(brow);
+}
+
+const BROW_TRIPLES = [
+  ['browStartL', 'browStartR', 'start'],
+  ['browPeakL', 'browPeakR', 'peak'],
+  ['browEndL', 'browEndR', 'end'],
+];
+
+function draw() {
+  const W = state.W, H = state.H;
+  ctx.clearRect(0, 0, W, H);
+  drawFrozen();
+  const f = state.face, P = state.pts;
+  if (!f || !P) return;
+
+  const S = settings, C = S.colors, show = S.show;
+  const lw = S.width, a = S.alpha;
+  const mode = state.mode, edit = state.edit;
+  const pos = (id) => P[id].pos;
+  const handle = (id) => edit && visibleDraggables().includes(id);
+
+  // Mittellinie: Mitte zwischen den Brauen -> Nase -> Lippe -> Kinn
+  if (show.mid) seg(f.midTop, f.midBottom, C.mid, lw, mode === 'overview' ? a : a * 0.8);
+  // Augenlinie
+  if (show.eye && mode !== 'mustache') {
+    const [p, q] = extend(f.eyeL, f.eyeR, 0.35);
+    seg(p, q, C.eye, lw, a);
+  }
+
+  if (mode === 'brows') {
+    if (show.contour) {
+      for (const b of [f.brows.left, f.brows.right]) {
+        poly(b.upper, '#ffffff', Math.max(1, lw * 0.7), 0.5);
+        poly(b.lower, '#ffffff', Math.max(1, lw * 0.7), 0.5);
+      }
+    }
+    for (const [idL, idR, key] of BROW_TRIPLES) {
+      if (!show[key]) continue;
+      const pl = pos(idL), pr = pos(idR);
+      if (show.guides) {
+        const [p, q] = extend(pl, pr, 0.25);
+        seg(p, q, C[key], Math.max(1, lw * 0.7), a * 0.85, [7, 6]);
+      }
+      if (show.ghosts) {
+        const g = ghostPair(f, pl, pr, S.refSide);
+        if (g.left) ring(g.left, C[key], 9);
+        if (g.right) ring(g.right, C[key], 9);
+      }
+    }
+  }
+
+  if (mode === 'mustache') {
+    const L = pos('mouthL'), R = pos('mouthR');
+    const eL = pos('mustEndL'), eR = pos('mustEndR');
+    if (show.white) {
+      const [p, q] = extend(L, R, 0.25);
+      seg(p, q, C.white, Math.max(1, lw * 0.7), a * 0.8, [3, 5]);
+    }
+    if (show.must) {
+      if (show.guides) {
+        const [p, q] = extend(eL, eR, 0.2);
+        seg(p, q, C.must, Math.max(1, lw * 0.7), a * 0.85, [7, 6]);
+      }
+      const g = ghostPair(f, eL, eR, S.refSide);
+      if (show.target) {
+        const tl = g.left || eL, tr = g.right || eR;
+        const apex = f.fromF(0, f.toF(pos('lipC')).b);
+        poly([tl, apex, tr], C.must, lw + 0.5, a, [10, 7]);
+      }
+      if (show.ghosts) {
+        if (g.left) ring(g.left, C.must, 10);
+        if (g.right) ring(g.right, C.must, 10);
+      }
+    }
+  }
+
+  // Punkte (oben), damit Linien sie nicht überdecken
+  if (show.white && mode !== 'brows') {
+    dot(pos('mouthL'), C.white, 4, handle('mouthL'));
+    dot(pos('mouthR'), C.white, 4, handle('mouthR'));
+    dot(pos('noseTip'), C.white, 3);
+    dot(pos('chin'), C.white, 3);
+  }
+  if (mode !== 'brows' && show.must) {
+    dot(pos('subnasale'), C.must, 3);
+    dot(pos('alaL'), C.must, 3);
+    dot(pos('alaR'), C.must, 3);
+    dot(pos('lipC'), C.must, 4.5, handle('lipC'));
+    dot(pos('mustEndL'), C.must, 6, handle('mustEndL'));
+    dot(pos('mustEndR'), C.must, 6, handle('mustEndR'));
+  }
+  if (mode !== 'mustache') {
+    const r = mode === 'brows' ? 6 : 4.5;
+    for (const [idL, idR, key] of BROW_TRIPLES) {
+      if (!show[key]) continue;
+      dot(pos(idL), C[key], r, handle(idL));
+      dot(pos(idR), C[key], r, handle(idR));
+    }
+  }
+}
+
+function drawFrozen() {
+  const W = state.W, H = state.H;
+  for (const k of ['h', 'v']) {
+    const fz = state.frozen[k];
+    if (!fz) continue;
+    const a = { x: fz.a.x * W, y: fz.a.y * H }, b = { x: fz.b.x * W, y: fz.b.y * H };
+    const dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy) || 1;
+    const ux = dx / len, uy = dy / len, far = W + H;
+    seg({ x: a.x - ux * far, y: a.y - uy * far }, { x: a.x + ux * far, y: a.y + uy * far },
+      '#e6edf7', Math.max(1, settings.width * 0.8), 0.75, [2, 6]);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Hinweise und Auswertung
+// ---------------------------------------------------------------------------
+function setHint(text) {
+  const el = $('hint');
+  if (el.textContent === text && el.hidden === !text) return;
+  el.textContent = text;
+  el.hidden = !text;
+}
+
+function updateHint() {
+  if (state.modelStatus === 'error') {
+    setHint('Die Gesichtserkennung konnte nicht geladen werden. Internetverbindung prüfen und Seite neu laden. (' + state.modelError + ')');
+  } else if (state.modelStatus !== 'ready') {
+    setHint('Gesichtserkennung wird geladen …');
+  } else if (state.runtimeError) {
+    setHint(state.runtimeError);
+  } else if (!state.face) {
+    setHint('Kein Gesicht erkannt. Halte dein Gesicht mittig ins Bild und sorge für gleichmäßiges Licht.');
+  } else if (state.partial) {
+    setHint('Dein Gesicht ist angeschnitten. Bitte ganz ins Bild bringen.');
+  } else if (state.face.fw / state.W < 0.28) {
+    setHint('Etwas näher an die Kamera gehen, damit die Linien genauer werden.');
+  } else {
+    setHint('');
+  }
+}
+
+const fmtPct = (x) => (Math.abs(x) * 100).toFixed(1).replace('.', ',') + ' %';
+const sideWord = (x) => (x > 0 ? 'links' : 'rechts');
+
+function heightText(h) {
+  const c = classify(Math.abs(h));
+  if (c === 0) return 'ungefähr gleich hoch';
+  return (c === 1 ? 'kleiner Höhenunterschied' : 'deutlicher Höhenunterschied') + ` (${sideWord(h)} höher)`;
+}
+function lateralShort(l) {
+  const c = classify(Math.abs(l));
+  if (c === 0) return 'ähnlich';
+  return `${sideWord(l)} ${c === 1 ? 'etwas ' : 'deutlich '}weiter außen`;
+}
+const metaOf = (m) => `Δ ${fmtPct(m.h)} · ≈ ${Math.round(m.hPx)} px`;
+
+function updateInfo() {
+  const now = performance.now();
+  if (now - state.infoAt < 250) return;
+  state.infoAt = now;
+
+  const f = state.face, P = state.pts;
+  if (!f || !P) { renderInfo([{ label: 'Kein Gesicht erkannt', text: '' }]); return; }
+
+  const rows = [];
+  const pair = (l, r) => pairMetrics(f, P[l].pos, P[r].pos);
+  const mode = state.mode;
+  const mustMoved = state.alignment === 'manual' && (state.offsets.mustEndL || state.offsets.mustEndR);
+
+  if (mode === 'overview' || mode === 'brows') {
+    const ms = pair('browStartL', 'browStartR');
+    const mp = pair('browPeakL', 'browPeakR');
+    const me = pair('browEndL', 'browEndR');
+    if (mode === 'overview') {
+      rows.push({ label: 'Brauenanfänge', text: heightText(ms.h), meta: metaOf(ms) });
+      rows.push({ label: 'Brauenbögen', text: heightText(mp.h), meta: metaOf(mp) });
+    } else {
+      rows.push({ label: 'Anfang', text: heightText(ms.h), meta: metaOf(ms) });
+      rows.push({ label: 'Bogen', text: heightText(mp.h), meta: metaOf(mp) });
+      rows.push({ label: 'Ende', text: heightText(me.h), meta: metaOf(me) });
+      rows.push({
+        label: 'Abstand zur Mitte',
+        text: `Anfang ${lateralShort(ms.l)} · Bogen ${lateralShort(mp.l)} · Ende ${lateralShort(me.l)}`,
+      });
+    }
+  }
+  if (mode === 'overview' || mode === 'mustache') {
+    const mm = pair('mustEndL', 'mustEndR');
+    if (mode === 'overview') {
+      rows.push({ label: 'Schnurrbart', text: mustMoved ? 'Enden: ' + heightText(mm.h) : 'Enden noch auf den Mundwinkeln', meta: mustMoved ? metaOf(mm) : '' });
+    } else {
+      if (mustMoved) {
+        rows.push({ label: 'Enden', text: heightText(mm.h), meta: metaOf(mm) });
+        rows.push({ label: 'Abstand zur Mitte', text: lateralShort(mm.l), meta: `Δ ${fmtPct(mm.l)} · ≈ ${Math.round(mm.lPx)} px` });
+      } else {
+        rows.push({ label: 'Enden', text: 'Noch auf den Mundwinkeln. „Anpassen“ wählen und die magentafarbenen Punkte auf die tatsächlichen Schnurrbart-Enden ziehen; dann werden sie verglichen.' });
+      }
+      const mc = pair('mouthL', 'mouthR');
+      rows.push({ label: 'Mundwinkel', text: heightText(mc.h), meta: metaOf(mc) });
+    }
+  }
+
+  if (state.offAxis == null) {
+    rows.push({ label: 'Kopfhaltung', text: 'nicht messbar' });
+  } else if (state.offAxis > POSE_WARN_DEG) {
+    rows.push({ label: 'Kopfhaltung', text: `≈ ${Math.round(state.offAxis)}° von der Frontalansicht abgewandt. Bitte gerade in die Kamera schauen, sonst sind die Werte unsicher.`, level: 'warn' });
+  } else {
+    rows.push({ label: 'Kopfhaltung', text: `frontal genug (≈ ${Math.round(state.offAxis)}° Abweichung)` });
+  }
+  rows.push({ label: '', text: 'Visuelle Schätzungen, links/rechts wie im Bild. Natürliche Unterschiede sind normal.', foot: true });
+  renderInfo(rows);
+}
+
+function renderInfo(rows) {
+  const sig = JSON.stringify(rows);
+  if (sig === state.infoSig) return;
+  state.infoSig = sig;
+  const frag = document.createDocumentFragment();
+  for (const r of rows) {
+    const d = document.createElement('div');
+    d.className = 'row' + (r.level === 'warn' ? ' warn' : '') + (r.foot ? ' foot' : '');
+    if (r.label) {
+      const l = document.createElement('span');
+      l.className = 'lbl';
+      l.textContent = r.label;
+      d.append(l);
+    }
+    if (r.text) {
+      const t = document.createElement('span');
+      t.className = 'txt';
+      t.textContent = r.text;
+      d.append(t);
+    }
+    if (r.meta) {
+      const m = document.createElement('span');
+      m.className = 'meta';
+      m.textContent = r.meta;
+      d.append(m);
+    }
+    frag.append(d);
+  }
+  $('info').replaceChildren(frag);
+}
+
+// ---------------------------------------------------------------------------
+// Touch: Punkte verschieben (nur im Anpassen-Modus)
+// ---------------------------------------------------------------------------
+function canvasPoint(e) {
+  const r = canvas.getBoundingClientRect();
+  return { x: ((e.clientX - r.left) / r.width) * state.W, y: ((e.clientY - r.top) / r.height) * state.H };
+}
+
+canvas.addEventListener('pointerdown', (e) => {
+  if (!state.edit || !state.pts || !state.face) return;
+  const p = canvasPoint(e);
+  let best = null, bestD = HIT_RADIUS;
+  for (const id of visibleDraggables()) {
+    const q = state.pts[id].pos;
+    const d = Math.hypot(q.x - p.x, q.y - p.y);
+    if (d < bestD) { best = id; bestD = d; }
+  }
+  if (!best) return;
+  const q = state.pts[best].pos;
+  state.drag = { id: best, pointerId: e.pointerId, dx: q.x - p.x, dy: q.y - p.y };
+  try { canvas.setPointerCapture(e.pointerId); } catch (_) { /* ignorieren */ }
+  e.preventDefault();
+});
+
+canvas.addEventListener('pointermove', (e) => {
+  const d = state.drag;
+  if (!d || e.pointerId !== d.pointerId || !state.face || !state.pts) return;
+  const p = canvasPoint(e);
+  const target = { x: p.x + d.dx, y: p.y + d.dy };
+  state.offsets[d.id] = offsetFromDrag(state.face, state.pts[d.id].auto, target);
+  if (state.alignment !== 'manual') { state.alignment = 'manual'; syncUI(); }
+  state.pts = buildPoints(state.face, state.offsets, true);
+  e.preventDefault();
+});
+
+const endDrag = (e) => {
+  if (state.drag && e.pointerId === state.drag.pointerId) {
+    try { canvas.releasePointerCapture(e.pointerId); } catch (_) { /* ignorieren */ }
+    state.drag = null;
+  }
+};
+canvas.addEventListener('pointerup', endDrag);
+canvas.addEventListener('pointercancel', endDrag);
+
+// ---------------------------------------------------------------------------
+// Hilfslinien fixieren
+// ---------------------------------------------------------------------------
+function toggleFreeze(kind) {
+  if (state.frozen[kind]) { state.frozen[kind] = null; syncUI(); return; }
+  const f = state.face, P = state.pts;
+  if (!f || !P) return;
+  let a, b;
+  if (kind === 'v') { a = f.midTop; b = f.midBottom; }
+  else if (state.mode === 'mustache') { a = P.mouthL.pos; b = P.mouthR.pos; }
+  else { a = f.eyeL; b = f.eyeR; }
+  state.frozen[kind] = { a: { x: a.x / state.W, y: a.y / state.H }, b: { x: b.x / state.W, y: b.y / state.H } };
+  syncUI();
+}
+
+// ---------------------------------------------------------------------------
+// Bedienoberfläche
+// ---------------------------------------------------------------------------
+function syncUI() {
+  document.querySelectorAll('.tab').forEach((t) => {
+    const on = t.dataset.mode === state.mode;
+    t.classList.toggle('is-active', on);
+    t.setAttribute('aria-selected', String(on));
+  });
+  const running = state.running;
+  $('btnToggle').textContent = state.starting ? 'Startet …' : running ? 'Kamera stoppen' : 'Kamera starten';
+  $('btnToggle').classList.toggle('primary', !running);
+  $('btnToggle').disabled = state.starting;
+  $('btnStart').disabled = state.starting;
+  $('btnEdit').classList.toggle('is-on', state.edit);
+  $('btnEdit').setAttribute('aria-pressed', String(state.edit));
+  $('btnEdit').textContent = state.edit ? 'Live' : 'Anpassen';
+  $('badge').hidden = !(state.edit && running);
+  stage.classList.toggle('editing', state.edit);
+  document.querySelectorAll('#segAlign button').forEach((b) => b.classList.toggle('is-on', b.dataset.align === state.alignment));
+  $('btnFreezeH').textContent = state.frozen.h ? 'Waagerechte lösen' : 'Waagerechte fixieren';
+  $('btnFreezeV').textContent = state.frozen.v ? 'Senkrechte lösen' : 'Senkrechte fixieren';
+  $('btnFreezeH').classList.toggle('is-on', !!state.frozen.h);
+  $('btnFreezeV').classList.toggle('is-on', !!state.frozen.v);
+}
+
+function buildSettingsUI() {
+  const box = $('displayRows');
+  const mkRow = (key, label, colorKey) => {
+    const row = document.createElement('div');
+    row.className = 'opt';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.id = 'show-' + key;
+    cb.checked = !!settings.show[key];
+    cb.addEventListener('change', () => { settings.show[key] = cb.checked; saveSettings(); });
+    const lb = document.createElement('label');
+    lb.htmlFor = cb.id;
+    lb.textContent = label;
+    row.append(cb, lb);
+    if (colorKey) {
+      const col = document.createElement('input');
+      col.type = 'color';
+      col.value = settings.colors[colorKey];
+      col.setAttribute('aria-label', 'Farbe: ' + label);
+      col.addEventListener('input', () => { settings.colors[colorKey] = col.value; saveSettings(); });
+      row.append(col);
+    }
+    box.append(row);
+  };
+  DISPLAY_ROWS.forEach(([k, l, c]) => mkRow(k, l, c));
+  DISPLAY_TOGGLES.forEach(([k, l]) => mkRow(k, l, null));
+
+  $('rngAlpha').value = Math.round(settings.alpha * 100);
+  $('rngAlpha').addEventListener('input', (e) => { settings.alpha = Number(e.target.value) / 100; saveSettings(); });
+  $('rngWidth').value = settings.width;
+  $('rngWidth').addEventListener('input', (e) => { settings.width = Number(e.target.value); saveSettings(); });
+  $('selRef').value = settings.refSide;
+  $('selRef').addEventListener('change', (e) => { settings.refSide = e.target.value; saveSettings(); });
+}
+
+function toggleSheet(open) {
+  const sheet = $('sheet');
+  const willOpen = open == null ? sheet.hidden : open;
+  sheet.hidden = !willOpen;
+  $('btnSettings').setAttribute('aria-expanded', String(willOpen));
+}
+
+document.querySelectorAll('.tab').forEach((t) =>
+  t.addEventListener('click', () => { state.mode = t.dataset.mode; state.infoSig = ''; syncUI(); }));
+$('btnStart').addEventListener('click', startCamera);
+$('btnToggle').addEventListener('click', () => (state.running ? stopCamera('') : startCamera()));
+$('btnFlip').addEventListener('click', flipCamera);
+$('btnEdit').addEventListener('click', () => { state.edit = !state.edit; state.drag = null; syncUI(); });
+$('btnSettings').addEventListener('click', () => toggleSheet());
+$('sheetClose').addEventListener('click', () => toggleSheet(false));
+document.querySelectorAll('#segAlign button').forEach((b) =>
+  b.addEventListener('click', () => { state.alignment = b.dataset.align; syncUI(); }));
+$('btnResetAdj').addEventListener('click', () => { state.offsets = {}; state.alignment = 'auto'; state.infoSig = ''; syncUI(); });
+$('btnFreezeH').addEventListener('click', () => toggleFreeze('h'));
+$('btnFreezeV').addEventListener('click', () => toggleFreeze('v'));
+
+// Kamera freigeben, wenn die Seite verlassen oder in den Hintergrund gelegt wird
+window.addEventListener('pagehide', () => { if (state.running) stopCamera(''); });
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && state.running) stopCamera('Die Kamera wurde angehalten, weil die Seite im Hintergrund war.');
+});
+
+buildSettingsUI();
+syncUI();
+renderInfo([]);
+
+</script>
+</body>
+</html>
